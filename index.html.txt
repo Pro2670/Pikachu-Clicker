@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pikachu Clicker | Beau's Game</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pika-yellow: #ffcb05;
+            --pika-blue: #2a75bb;
+            --bg-color: #f0f4f8;
+            --panel-bg: #ffffff;
+            --text-color: #333;
+            --accent-grad: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 99%);
+            --apple-green: #34c759;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+            transition: 0.5s ease;
+        }
+
+        /* --- Theme Styles --- */
+        body.theme-dark { --bg-color: #1a1a1a; --panel-bg: #2d2d2d; --text-color: #fff; }
+        body.theme-ocean { --bg-color: #0077be; --panel-bg: #e0f2fe; --text-color: #0369a1; }
+        body.theme-sunset { --bg-color: #ff512f; --panel-bg: #fff5f5; --text-color: #9b2c2c; }
+        body.theme-master { 
+            --bg-color: #6b21a8; 
+            --panel-bg: #faf5ff; 
+            --text-color: #581c87;
+            background: linear-gradient(45deg, #6b21a8, #db2777);
+        }
+
+        /* --- HUD --- */
+        #event-hud {
+            position: fixed; top: -100px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.9); color: white; padding: 15px 50px;
+            border-bottom-left-radius: 20px; border-bottom-right-radius: 20px;
+            z-index: 1000; transition: 0.5s; border: 2px solid var(--pika-yellow); text-align: center;
+        }
+        #event-hud.active { top: 0; }
+
+        /* --- Main Menu --- */
+        #main-menu {
+            position: fixed; inset: 0; background: white; z-index: 500;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;
+        }
+        .play-btn {
+            background: var(--accent-grad); border: none; padding: 20px 80px;
+            font-size: 2rem; font-weight: 800; border-radius: 50px; cursor: pointer;
+            animation: pulse 2s infinite; color: black;
+        }
+
+        /* --- Game Window --- */
+        #game-window {
+            display: none; width: 950px; height: 650px; background: var(--panel-bg);
+            border-radius: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+
+        .tabs { display: flex; background: rgba(0,0,0,0.05); border-bottom: 1px solid rgba(0,0,0,0.1); overflow-x: auto; }
+        .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; font-weight: 600; min-width: 100px; transition: 0.3s; }
+        .tab.active { background: var(--panel-bg); color: var(--pika-blue); border-bottom: 4px solid var(--pika-blue); }
+
+        .content { flex: 1; padding: 30px; overflow-y: auto; position: relative; }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+
+        /* --- Clicker Area --- */
+        .click-area { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        #pika-main { width: 220px; cursor: pointer; transition: 0.1s; }
+        #pika-main:active { transform: scale(0.9); }
+
+        /* --- Spawning --- */
+        .spawned-pokemon {
+            position: absolute; width: 90px; cursor: pointer; z-index: 100;
+            animation: spawnIn 0.5s ease-out; filter: drop-shadow(0 0 10px rgba(255,255,255,0.8));
+        }
+
+        /* --- Theme Grid --- */
+        .theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+        .theme-box { 
+            padding: 20px; border-radius: 12px; text-align: center; cursor: pointer; 
+            font-weight: bold; border: 2px solid transparent; transition: 0.2s;
+        }
+        .theme-box:hover { transform: scale(1.05); }
+        .locked { background: #ddd !important; color: #888; cursor: not-allowed; }
+
+        /* --- Pokedex --- */
+        .pokedex-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+        .pika-card { background: rgba(0,0,0,0.05); padding: 15px; border-radius: 12px; text-align: center; opacity: 0.2; position: relative; }
+        .pika-card.caught { opacity: 1; border: 2px solid var(--pika-yellow); background: white; }
+
+        /* --- Visuals --- */
+        @keyframes spawnIn { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: scale(1); } }
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        .floating-text { position: absolute; font-weight: 800; color: #ff512f; animation: floatUp 0.8s forwards; pointer-events: none; }
+        @keyframes floatUp { to { transform: translateY(-100px); opacity: 0; } }
+    </style>
+</head>
+<body class="theme-default">
+
+    <div id="event-hud">
+        <div style="font-weight: 800; color: var(--pika-yellow);" id="hud-name">EVENT ACTIVE</div>
+        <div style="font-size: 0.8rem;">Multiplier: <span id="hud-mult">1</span>X | Time: <span id="hud-time">5:00</span></div>
+    </div>
+
+    <audio id="pop-sfx" src="https://www.soundjay.com/buttons/sounds/button-20.mp3"></audio>
+    <audio id="rare-sfx" src="https://www.myinstants.com/media/sounds/level-up-pokemon.mp3"></audio>
+
+    <div id="main-menu">
+        <h1 style="font-size: 4rem; margin:0;">Pikachu Clicker</h1>
+        <p style="font-size: 1.5rem; color: #666; margin-bottom: 30px;">Beau's Clicker Game</p>
+        <button class="play-btn" onclick="startGame()">PLAY</button>
+    </div>
+
+    <div id="game-window">
+        <div class="tabs">
+            <div class="tab active" onclick="setTab('clicker')">Clicker</div>
+            <div class="tab" onclick="setTab('shop')">Shop</div>
+            <div class="tab" onclick="setTab('pokedex')">Pokedex</div>
+            <div class="tab" onclick="setTab('themes')">Themes</div>
+            <div class="tab" onclick="setTab('admin')">Admin</div>
+            <div class="tab" onclick="setTab('settings')">Settings</div>
+        </div>
+
+        <div class="content">
+            <div id="tab-clicker" class="tab-pane active">
+                <div class="click-area">
+                    <div style="font-size: 2.5rem; font-weight: 800;">Clicks: <span id="click-count">0</span></div>
+                    <div style="opacity: 0.7;">Auto: <span id="auto-val">0</span>/s</div>
+                    <img id="pika-main" src="https://assets.pokemon.com/assets/cms2/img/pokedex/full/025.png" onclick="doClick(event)">
+                </div>
+            </div>
+
+            <div id="tab-pokedex" class="tab-pane">
+                <h2>Pokedex</h2>
+                <div class="pokedex-grid" id="pokedex-list"></div>
+            </div>
+
+            <div id="tab-themes" class="tab-pane">
+                <h3>Click Themes</h3>
+                <div class="theme-grid">
+                    <div class="theme-box" style="background:#f0f4f8; color:#333;" onclick="changeTheme('default')">Light</div>
+                    <div class="theme-box" style="background:#1a1a1a; color:white;" onclick="changeTheme('dark')">Dark</div>
+                    <div class="theme-box" style="background:linear-gradient(to right, #0077be, #00aeef); color:white;" onclick="changeTheme('ocean')">Ocean</div>
+                    <div class="theme-box" style="background:linear-gradient(to right, #ff512f, #f09819); color:white;" onclick="changeTheme('sunset')">Sunset</div>
+                </div>
+                <h3>Special Themes</h3>
+                <div class="theme-grid">
+                    <div id="master-theme-btn" class="theme-box locked">Catch All Pokemon to Unlock</div>
+                </div>
+            </div>
+
+            <div id="tab-shop" class="tab-pane">
+                <h2>Shop</h2>
+                <div style="display:flex; flex-direction:column; gap:10px;" id="shop-list">
+                    <button class="play-btn" style="font-size:1rem; padding:15px;" onclick="buyUpgrade('ray')">Pika Ray (2x) - <span id="ray-cost">50</span></button>
+                    </div>
+            </div>
+
+            <div id="tab-admin" class="tab-pane">
+                <div id="admin-gate">
+                    <input type="password" id="admin-pass" placeholder="Password">
+                    <button onclick="checkAdmin()" style="margin-top:10px; width:100%;">Login</button>
+                </div>
+                <div id="admin-controls" style="display:none;">
+                    <input type="number" id="adm-amt" placeholder="Amount">
+                    <button onclick="modResources(true)">Give Clicks</button>
+                    <button onclick="runEvent('Pokemon Rain', 5)">Start Rain (5X)</button>
+                </div>
+            </div>
+
+            <div id="tab-settings" class="tab-pane">
+                <h2>Settings</h2>
+                <button onclick="hardReset()" style="background:#ff3b30; color:white; border:none; padding:15px; border-radius:12px; width:100%; cursor:pointer;">HARD RESET</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let game = {
+            clicks: 0, power: 1, auto: 0, rayCost: 50,
+            pokedex: [], sfx: true, theme: 'default', allCaught: false
+        };
+
+        const monsters = [
+            {id: 1, name: "Bulbasaur", img: "001", chance: 0.2},
+            {id: 4, name: "Charmander", img: "004", chance: 0.2},
+            {id: 7, name: "Squirtle", img: "007", chance: 0.2},
+            {id: 133, name: "Eevee", img: "133", chance: 0.17},
+            {id: 150, name: "Mewtwo", img: "150", chance: 0.2},
+            {id: 25, name: "Pikachu", img: "025", chance: 0.03} // 3% Chance
+        ];
+
+        let eventActive = false;
+        let eventMult = 1;
+
+        function updateUI() {
+            document.getElementById('click-count').innerText = Math.floor(game.clicks);
+            document.getElementById('auto-val').innerText = game.auto;
+            document.getElementById('ray-cost').innerText = game.rayCost;
+            save();
+        }
+
+        function save() { localStorage.setItem('pikaBeauFinal', JSON.stringify(game)); }
+        function load() {
+            let data = localStorage.getItem('pikaBeauFinal');
+            if(data) {
+                game = JSON.parse(data);
+                changeTheme(game.theme);
+                checkPokedexUnlock();
+            }
+            renderPokedex();
+            updateUI();
+        }
+
+        function startGame() {
+            document.getElementById('main-menu').style.display = 'none';
+            document.getElementById('game-window').style.display = 'flex';
+            load();
+            setInterval(() => { game.clicks += (game.auto / 10) * eventMult; updateUI(); }, 100);
+            setInterval(spawnPokemon, 30000);
+        }
+
+        function doClick(e) {
+            let gain = game.power * eventMult;
+            game.clicks += gain;
+            if(game.sfx) { let s = document.getElementById('pop-sfx'); s.currentTime=0; s.play(); }
+            showFloat(e.clientX, e.clientY, `+${gain}`);
+            updateUI();
+        }
+
+        function spawnPokemon() {
+            let rand = Math.random();
+            let cumulative = 0;
+            let mon = monsters[0];
+            
+            for (let m of monsters) {
+                cumulative += m.chance;
+                if (rand < cumulative) { mon = m; break; }
+            }
+
+            if (mon.name === "Pikachu") {
+                let r = document.getElementById('rare-sfx'); r.currentTime=0; r.play();
+            }
+
+            let img = document.createElement('img');
+            img.src = `https://assets.pokemon.com/assets/cms2/img/pokedex/full/${mon.img}.png`;
+            img.className = 'spawned-pokemon';
+            img.style.left = (Math.random() * 60 + 20) + '%';
+            img.style.top = (Math.random() * 60 + 20) + '%';
+            
+            img.onclick = () => {
+                if(!game.pokedex.includes(mon.name)) {
+                    game.pokedex.push(mon.name);
+                    renderPokedex();
+                    checkPokedexUnlock();
+                }
+                img.remove();
+            };
+
+            document.getElementById('tab-clicker').appendChild(img);
+            setTimeout(() => { if(img) img.remove(); }, 10000);
+        }
+
+        function renderPokedex() {
+            let html = '';
+            monsters.forEach(m => {
+                let caught = game.pokedex.includes(m.name);
+                html += `<div class="pika-card ${caught ? 'caught' : ''}">
+                    <img src="https://assets.pokemon.com/assets/cms2/img/pokedex/full/${m.img}.png" style="width:100%">
+                    <div style="font-weight:bold">${caught ? m.name : '???'}</div>
+                    <div style="font-size:0.7rem">${m.name === "Pikachu" ? 'LEGENDARY (3%)' : 'Common'}</div>
+                </div>`;
+            });
+            document.getElementById('pokedex-list').innerHTML = html;
+        }
+
+        function checkPokedexUnlock() {
+            if (game.pokedex.length === monsters.length) {
+                game.allCaught = true;
+                let btn = document.getElementById('master-theme-btn');
+                btn.classList.remove('locked');
+                btn.innerText = "Master Ball Theme";
+                btn.style.background = "linear-gradient(45deg, #6b21a8, #db2777)";
+                btn.onclick = () => changeTheme('master');
+            }
+        }
+
+        function changeTheme(t) {
+            document.body.className = '';
+            document.body.classList.add('theme-' + t);
+            game.theme = t;
+            save();
+        }
+
+        function runEvent(name, mult) {
+            if(eventActive) return;
+            eventActive = true; eventMult = mult;
+            let time = 300;
+            document.getElementById('hud-name').innerText = name + " ACTIVE";
+            document.getElementById('hud-mult').innerText = mult;
+            document.getElementById('event-hud').classList.add('active');
+            let timer = setInterval(() => {
+                time--;
+                let m = Math.floor(time/60), s = time%60;
+                document.getElementById('hud-time').innerText = `${m}:${s<10?'0':''}${s}`;
+                if(time <= 0) { clearInterval(timer); eventActive = false; eventMult = 1; document.getElementById('event-hud').classList.remove('active'); }
+            }, 1000);
+        }
+
+        function setTab(t) {
+            document.querySelectorAll('.tab, .tab-pane').forEach(el => el.classList.remove('active'));
+            document.querySelector(`.tab[onclick="setTab('${t}')"]`).classList.add('active');
+            document.getElementById(`tab-${t}`).classList.add('active');
+        }
+
+        function buyUpgrade() {
+            if(game.clicks >= game.rayCost) { game.clicks -= game.rayCost; game.power *= 2; game.rayCost *= 2; updateUI(); }
+        }
+
+        function checkAdmin() {
+            if(document.getElementById('admin-pass').value === 'PikachuBeau6') {
+                document.getElementById('admin-gate').style.display = 'none';
+                document.getElementById('admin-controls').style.display = 'block';
+            }
+        }
+
+        function modResources(add) {
+            let a = parseInt(document.getElementById('adm-amt').value) || 0;
+            game.clicks += add ? a : -a; updateUI();
+        }
+
+        function showFloat(x, y, txt) {
+            let el = document.createElement('div'); el.className = 'floating-text'; el.innerText = txt;
+            el.style.left = x + 'px'; el.style.top = y + 'px'; document.body.appendChild(el);
+            setTimeout(() => el.remove(), 800);
+        }
+
+        function hardReset() { if(confirm("Reset everything?")) { localStorage.clear(); location.reload(); } }
+    </script>
+</body>
+</html>
